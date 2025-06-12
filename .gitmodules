@@ -1,0 +1,3 @@
+[submodule ".NECO"]
+	path = .NECO
+	url = git@github.com:PaulUlanovskij/.NECO.git
