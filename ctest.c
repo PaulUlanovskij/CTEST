@@ -36,10 +36,10 @@ bool parse_config(cstr path, Config *cfg) {
       log_warning("Unexpected amount of args");
       continue;
     }
-    if (cstr_cmp_vstr("BUILD_DIR", parts.items[0]) == true) {
-      cfg->build_dir = vstr_to_cstr(parts.items[1]);
-    } else if (cstr_cmp_vstr("SRC_DIR", parts.items[0]) == true) {
-      cfg->src_dir = vstr_to_cstr(parts.items[1]);
+    if (cstr_cmp_vstr("BUILD_DIR", vstr_trim(parts.items[0])) == true) {
+      cfg->build_dir = vstr_to_cstr(vstr_trim(parts.items[1]));
+    } else if (cstr_cmp_vstr("SRC_DIR", vstr_trim(parts.items[0])) == true) {
+      cfg->src_dir = vstr_to_cstr(vstr_trim(parts.items[1]));
     } else {
       log_warning("Unknown config parameter");
     }
@@ -51,39 +51,6 @@ bool parse_config(cstr path, Config *cfg) {
   return true;
 }
 
-vstr vstr_capture_block(vstr vs, int offset, cstr inc, cstr dec) {
-  vstr data = vstr_offset(vs, offset);
-  int index = vstr_word_index(data, inc);
-  if (index == -1) {
-    return (vstr){};
-  }
-  int start_index = index;
-  data = vstr_offset(data, index + strlen(inc));
-  int balance = 1;
-  while (balance > 0) {
-    index = vstr_first_word_index(data, (cstr[2]){inc, dec}, 2);
-    if (index == -1) {
-      return (vstr){};
-    }
-    data = vstr_offset(data, index);
-    if (vstr_starts_with(data, inc)) {
-      balance++;
-      data = vstr_offset(data, strlen(inc));
-    } else {
-      balance--;
-      data = vstr_offset(data, strlen(dec));
-    }
-  }
-  return vstr_slice(vstr_offset(vs, offset + start_index), 0,
-                    data.items - (vs.items + offset + start_index));
-}
-int cstr_count_char(cstr str, char c) {
-  int count = 0;
-  for (int index = 0; (index = cstr_char_index(str, c)) != -1; count++) {
-    str = cstr_offset(str, index + 1);
-  }
-  return count;
-}
 void collect_tests(Config cfg, cstr c_file_path) {
   vstr_o file_contents = {};
 
@@ -107,12 +74,12 @@ void collect_tests(Config cfg, cstr c_file_path) {
   }
 
   da_foreach(&test_marks, mark_offset) {
-    vstr name = vstr_capture_block(file_contents, *mark_offset, "(", ")");
+    vstr name = vstr_capture_block_by_char(file_contents, *mark_offset, '(', ')');
     if (name.length == 0) {
       break;
     }
-    name = vstr_slice(name, 1, name.length - 1);
-    vstr body = vstr_capture_block(file_contents, *mark_offset, "{", "}");
+    name = vstr_trim(vstr_slice(name, 1, name.length - 1));
+    vstr body = vstr_capture_block_by_char(file_contents, *mark_offset, '{', '}');
     if (body.length == 0) {
       break;
     }
@@ -173,7 +140,6 @@ void dir_collect_tests(cstr path, Config cfg) {
   }
   da_foreach(&src_dir, item) {
     cstr_o new_path = path_join(path, item->name);
-    printf("%s\n", item->name);
     if (item->type == DT_DIR) {
       dir_collect_tests(new_path, cfg);
     } else if (cstr_ends_with(item->name, ".c") ||
