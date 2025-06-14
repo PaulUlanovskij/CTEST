@@ -6,11 +6,11 @@
 #include <strings.h>
 #include <sys/types.h>
 
+#include ".NECO/headers/subprocess.h"
 #include ".NECO/headers/cio.h"
 #include ".NECO/headers/da.h"
 #include ".NECO/headers/fio.h"
 #include ".NECO/headers/str.h"
-#include ".NECO/headers/types.h"
 
 typedef struct {
   cstr build_dir;
@@ -59,7 +59,7 @@ void collect_tests(Config cfg, cstr c_file_path) {
     return;
   }
 
-  int_da test_marks = vstr_index_word(file_contents, "CTEST");
+  int_da test_marks = vstr_index_word(file_contents, "CTEST(");
   if (test_marks.length == 0) {
     free(file_contents.items);
     return;
@@ -113,14 +113,15 @@ void collect_tests(Config cfg, cstr c_file_path) {
     Cmd cmd = {};
     cstr_o test_exe_path = path_join(cfg.build_dir, name_cstr);
     cmd_append(&cmd, "cc", "-o", test_exe_path, test_src_path);
-    if (pid_get_exitcode(cmd_create_child(&cmd)) == 0) {
+    if (subprocess_run(&cmd, NULL, false).returncode == 0) {
       cmd_append(&cmd, test_exe_path);
-      int code = pid_get_exitcode(cmd_create_child(&cmd));
+      int code = subprocess_run(&cmd, NULL, false).returncode;
       if (code == 0) {
         printf("[TEST_INFO] Test %s passed.\n", name_cstr);
       } else {
         printf("[TEST_INFO] Test %s failed with code %d.\n", name_cstr, code);
       }
+      //TODO: cleanup finished processes?
     } else {
       log_error("Failed to compile test source file");
     }
@@ -157,5 +158,5 @@ int main(int argc, char **argv) {
   printf("source dir: %s\n", cfg.src_dir);
   dir_collect_tests(cfg.src_dir, cfg);
 
-  return 69;
+  return 0;
 }
